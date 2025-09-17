@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ["SECRET_KEY"] = "test-secret-key-for-testing"
 os.environ["DATABASE_URL"] = "sqlite:///test.db"
 
-from auth.utils import (
+from src.auth.utils import (
     get_password_hash, verify_password, create_access_token, 
     verify_token, validate_password_strength
 )

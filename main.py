@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from auth.routes import router as auth_router
-from routes.leads import router as leads_router
-from routes.campaigns import router as campaigns_router
-from routes.analytics import router as analytics_router
-from database.connection import create_tables, get_redis
-from database.migrations import run_migrations
+from src.auth.routes import router as auth_router
+from src.routes.leads import router as leads_router
+from src.routes.campaigns import router as campaigns_router
+from src.routes.analytics import router as analytics_router
+from src.database.connection import create_tables, get_redis
+from src.database.migrations import run_migrations
 import os
 import logging
 
@@ -62,6 +62,18 @@ app.include_router(leads_router)
 app.include_router(campaigns_router)
 app.include_router(analytics_router)
 
+# Include preferences router
+from src.routes.preferences import router as preferences_router
+app.include_router(preferences_router)
+
+# Import and include scraping router
+try:
+    from src.routes.scraping import router as scraping_router
+    app.include_router(scraping_router)
+    logger.info("Scraping routes registered successfully")
+except ImportError as e:
+    logger.warning(f"Scraping routes not available: {e}")
+
 @app.get("/")
 def root():
     return {
@@ -75,9 +87,25 @@ def root():
 def health_check():
     """Health check endpoint for monitoring"""
     redis_client = get_redis()
+    
+    # Check scraping system availability
+    scraping_available = False
+    try:
+        from src.scraping.manager import ScrapingManager
+        scraping_available = True
+    except ImportError:
+        pass
+    
     return {
         "status": "healthy",
         "database": "connected",
         "redis": "connected" if redis_client else "disconnected",
-        "version": "1.0.0"
+        "scraping": "available" if scraping_available else "unavailable",
+        "version": "1.0.0",
+        "features": {
+            "search": True,
+            "authentication": True,
+            "caching": bool(redis_client),
+            "scraping": scraping_available
+        }
     }
