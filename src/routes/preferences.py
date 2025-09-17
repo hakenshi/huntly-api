@@ -8,7 +8,7 @@ from ..models.preferences import (
     PreferencesAppliedSearch
 )
 from ..services.preferences import PreferencesService
-from ..utils.auth import get_current_user_id
+from ..auth.utils import get_current_user_id
 
 router = APIRouter(prefix="/preferences", tags=["preferences"])
 

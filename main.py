@@ -42,8 +42,11 @@ async def startup_event():
         logger.info("Database tables created successfully")
         
         # Run migrations
-        run_migrations()
-        logger.info("Database migrations completed")
+        migration_success = run_migrations()
+        if migration_success:
+            logger.info("Database migrations completed successfully")
+        else:
+            logger.warning("Database migrations failed - some features may be limited")
         
         # Test Redis connection
         redis_client = get_redis()

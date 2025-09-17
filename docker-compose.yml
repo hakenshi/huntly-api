@@ -13,6 +13,11 @@ services:
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./database/test_schema.sql:/docker-entrypoint-initdb.d/02-test-schema.sql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U huntly_user -d huntly"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -20,6 +25,33 @@ services:
     ports:
       - "6379:6379"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: huntly_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://huntly_user:huntly_pass@postgres:5432/huntly
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=your-secret-key-here
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    command:
+      ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 volumes:
   postgres_data:

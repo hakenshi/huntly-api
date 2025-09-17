@@ -12,6 +12,7 @@ python-dotenv
 redis
 pytest
 httpx
+requests
 
 # Scraping dependencies
 aiohttp
