@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
-from models import Lead, LeadCreate, SearchFilters
+from models.lead import Lead, LeadCreate
+from models.search import SearchFilters
 from datetime import datetime
 
 router = APIRouter(prefix="/leads", tags=["leads"])

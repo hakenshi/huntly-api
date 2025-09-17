@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from models import DashboardMetrics, LeadsByMonth, SourceMetrics, IndustryBreakdown, PerformanceMetrics
+from models.analytics import DashboardMetrics, LeadsByMonth, SourceMetrics, IndustryBreakdown, PerformanceMetrics
 from typing import List
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from typing import List
-from models import Campaign, CampaignCreate
+from models.campaign import Campaign, CampaignCreate
 from datetime import datetime
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])

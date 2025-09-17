@@ -4,9 +4,20 @@ from auth.routes import router as auth_router
 from routes.leads import router as leads_router
 from routes.campaigns import router as campaigns_router
 from routes.analytics import router as analytics_router
+from database.connection import create_tables, get_redis
+from database.migrations import run_migrations
 import os
+import logging
 
-app = FastAPI(title="Huntly API", version="1.0.0")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="Huntly API", 
+    version="1.0.0",
+    description="Discovery engine for lead generation and qualification"
+)
 
 # CORS - permite frontend em produção
 app.add_middleware(
@@ -22,6 +33,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and services on startup"""
+    try:
+        # Create database tables
+        create_tables()
+        logger.info("Database tables created successfully")
+        
+        # Run migrations
+        run_migrations()
+        logger.info("Database migrations completed")
+        
+        # Test Redis connection
+        redis_client = get_redis()
+        if redis_client:
+            logger.info("Redis connection established")
+        else:
+            logger.warning("Redis not available - cache disabled")
+            
+    except Exception as e:
+        logger.error(f"Startup failed: {e}")
+        raise
+
 # Include routers
 app.include_router(auth_router)
 app.include_router(leads_router)
@@ -30,8 +64,20 @@ app.include_router(analytics_router)
 
 @app.get("/")
 def root():
-    return {"message": "Huntly API", "version": "1.0.0", "status": "running"}
+    return {
+        "message": "Huntly API", 
+        "version": "1.0.0", 
+        "status": "running",
+        "description": "Discovery engine for lead generation"
+    }
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    """Health check endpoint for monitoring"""
+    redis_client = get_redis()
+    return {
+        "status": "healthy",
+        "database": "connected",
+        "redis": "connected" if redis_client else "disconnected",
+        "version": "1.0.0"
+    }
