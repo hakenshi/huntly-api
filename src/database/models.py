@@ -47,6 +47,11 @@ class Lead(Base):
     status = Column(String(50), default="Novo")
     priority = Column(String(50), default="Média")
     
+    # Analytics tracking fields
+    view_count = Column(Integer, default=0)
+    contact_count = Column(Integer, default=0)
+    conversion_score = Column(Float, default=0.0)
+    
     # Indexing and timestamps
     search_vector = Column(TSVECTOR)
     indexed_at = Column(DateTime)
@@ -108,6 +113,56 @@ class UserPreferences(Base):
     
     user = relationship("User", back_populates="preferences")
 
+class SearchAnalyticsEvent(Base):
+    __tablename__ = "search_analytics_events"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    
+    # Search details
+    query_text = Column(Text)
+    filters_applied = Column(JSON)
+    results_count = Column(Integer, default=0)
+    response_time_ms = Column(Integer)
+    
+    # User interaction
+    clicked_results = Column(Integer, default=0)
+    contacted_leads = Column(Integer, default=0)
+    converted_leads = Column(Integer, default=0)
+    
+    # Cache performance
+    cache_hit = Column(String(10), default="miss")  # hit, miss, partial
+    
+    # Metadata
+    session_id = Column(String(255))
+    user_agent = Column(String(500))
+    ip_address = Column(String(45))
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User")
+
+class LeadInteractionEvent(Base):
+    __tablename__ = "lead_interaction_events"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    lead_id = Column(Integer, ForeignKey("leads.id"))
+    
+    # Interaction type
+    interaction_type = Column(String(50))  # view, contact, email, call, convert
+    interaction_data = Column(JSON)  # Additional data about the interaction
+    
+    # Source of interaction
+    source_search_query = Column(Text)  # Original search that led to this lead
+    source_campaign_id = Column(Integer, ForeignKey("campaigns.id"))
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User")
+    lead = relationship("Lead")
+    campaign = relationship("Campaign")
+
 # Create indexes for performance
 Index('idx_leads_industry', Lead.industry)
 Index('idx_leads_location', Lead.location)
@@ -115,3 +170,9 @@ Index('idx_leads_company_text', Lead.search_vector, postgresql_using='gin')
 Index('idx_leads_keywords', Lead.keywords, postgresql_using='gin')
 Index('idx_leads_user_status', Lead.user_id, Lead.status)
 Index('idx_campaigns_user_status', Campaign.user_id, Campaign.status)
+
+# Analytics indexes
+Index('idx_search_analytics_user_created', SearchAnalyticsEvent.user_id, SearchAnalyticsEvent.created_at)
+Index('idx_search_analytics_query', SearchAnalyticsEvent.query_text, postgresql_using='gin')
+Index('idx_lead_interactions_user_created', LeadInteractionEvent.user_id, LeadInteractionEvent.created_at)
+Index('idx_lead_interactions_lead_type', LeadInteractionEvent.lead_id, LeadInteractionEvent.interaction_type)

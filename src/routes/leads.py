@@ -11,6 +11,7 @@ from ..models.lead import Lead, LeadCreate, RankedLead
 from ..models.search import SearchFilters, SearchQuery, SearchUserPreferences
 from ..models.preferences import PreferencesAppliedSearch
 from ..services.preferences import PreferencesService
+from ..services.search_analytics_tracker import SearchAnalyticsTracker
 from ..search.engine import SearchEngine
 from ..cache.manager import CacheManager
 from ..auth.utils import get_current_user_id
@@ -113,6 +114,10 @@ async def search_leads(
         cache_manager = CacheManager(redis_client) if redis_client else None
         search_engine = SearchEngine(db, cache_manager)
         preferences_service = PreferencesService(db)
+        analytics_tracker = SearchAnalyticsTracker(db, cache_manager) if cache_manager else None
+        
+        # Track search start time
+        search_start = datetime.utcnow()
         
         # Get user preferences if requested
         user_preferences = None
@@ -130,6 +135,20 @@ async def search_leads(
         
         # Perform search with preferences
         search_results = search_engine.search_leads(search_query, user_preferences)
+        
+        # Calculate search time and track analytics
+        search_time_ms = int((datetime.utcnow() - search_start).total_seconds() * 1000)
+        
+        # Track search event
+        if analytics_tracker:
+            analytics_tracker.track_search_event(
+                user_id=current_user_id,
+                query_text=search_query.text,
+                filters_applied=search_query.filters.model_dump() if search_query.filters else {},
+                results_count=len(search_results),
+                response_time_ms=search_time_ms,
+                cache_hit="hit" if cache_manager and cache_manager.enabled else "miss"
+            )
         
         # Convert to RankedLead format
         ranked_leads = []
@@ -712,6 +731,45 @@ async def advanced_search_leads(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro na busca avançada: {str(e)}"
+        )
+
+@router.post("/{lead_id}/track-interaction")
+async def track_lead_interaction(
+    lead_id: int,
+    interaction_type: str,
+    interaction_data: Optional[dict] = None,
+    current_user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+    redis_client = Depends(get_redis)
+):
+    """Track lead interaction for analytics"""
+    try:
+        cache_manager = CacheManager(redis_client) if redis_client else None
+        analytics_tracker = SearchAnalyticsTracker(db, cache_manager) if cache_manager else None
+        
+        if analytics_tracker:
+            event_id = analytics_tracker.track_lead_interaction(
+                user_id=current_user_id,
+                lead_id=lead_id,
+                interaction_type=interaction_type,
+                interaction_data=interaction_data
+            )
+            
+            return {
+                "success": True,
+                "event_id": event_id,
+                "message": f"Interaction '{interaction_type}' tracked for lead {lead_id}"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Analytics tracking not available"
+            }
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao rastrear interação: {str(e)}"
         )
 
 @router.get("/search/performance")

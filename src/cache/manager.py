@@ -384,3 +384,111 @@ class CacheManager:
         except Exception as e:
             logger.error(f"Error searching leads by tokens {tokens}: {e}")
             return []
+    
+    def get_cache_stats(self) -> Optional[Dict[str, Any]]:
+        """Get cache statistics for analytics"""
+        if not self.enabled:
+            return None
+        
+        try:
+            info = self.redis_client.info()
+            stats = info.get("stats", {})
+            
+            return {
+                "hits": stats.get("keyspace_hits", 0),
+                "misses": stats.get("keyspace_misses", 0),
+                "total_commands": stats.get("total_commands_processed", 0),
+                "connected_clients": info.get("connected_clients", 0),
+                "used_memory": info.get("used_memory", 0),
+                "used_memory_human": info.get("used_memory_human", "0B"),
+                "keys_count": self._get_total_keys_count()
+            }
+        except Exception as e:
+            logger.error(f"Error getting cache stats: {e}")
+            return None
+    
+    def _get_total_keys_count(self) -> int:
+        """Get total number of keys in Redis"""
+        try:
+            info = self.redis_client.info("keyspace")
+            db_info = info.get("db0", {})
+            if isinstance(db_info, dict):
+                return db_info.get("keys", 0)
+            elif isinstance(db_info, str):
+                # Parse string format: "keys=123,expires=45,avg_ttl=678"
+                for part in db_info.split(","):
+                    if part.startswith("keys="):
+                        return int(part.split("=")[1])
+            return 0
+        except Exception as e:
+            logger.error(f"Error getting keys count: {e}")
+            return 0
+    
+    def increment_counter(self, key: str, amount: int = 1, ttl: Optional[int] = None) -> int:
+        """Increment a counter in Redis"""
+        if not self.enabled:
+            return 0
+        
+        try:
+            result = self.redis_client.incr(key, amount)
+            if ttl and result == amount:  # First time setting the key
+                self.redis_client.expire(key, ttl)
+            return result
+        except Exception as e:
+            logger.error(f"Error incrementing counter {key}: {e}")
+            return 0
+    
+    def get_counter(self, key: str) -> int:
+        """Get counter value from Redis"""
+        if not self.enabled:
+            return 0
+        
+        try:
+            result = self.redis_client.get(key)
+            return int(result) if result else 0
+        except Exception as e:
+            logger.error(f"Error getting counter {key}: {e}")
+            return 0
+    
+    def set_hash_field(self, hash_key: str, field: str, value: Any, ttl: Optional[int] = None) -> bool:
+        """Set a field in a Redis hash"""
+        if not self.enabled:
+            return False
+        
+        try:
+            serialized_value = self._serialize_data(value)
+            result = self.redis_client.hset(hash_key, field, serialized_value)
+            if ttl:
+                self.redis_client.expire(hash_key, ttl)
+            return bool(result)
+        except Exception as e:
+            logger.error(f"Error setting hash field {hash_key}:{field}: {e}")
+            return False
+    
+    def get_hash_field(self, hash_key: str, field: str) -> Optional[Any]:
+        """Get a field from a Redis hash"""
+        if not self.enabled:
+            return None
+        
+        try:
+            result = self.redis_client.hget(hash_key, field)
+            return self._deserialize_data(result) if result else None
+        except Exception as e:
+            logger.error(f"Error getting hash field {hash_key}:{field}: {e}")
+            return None
+    
+    def get_all_hash_fields(self, hash_key: str) -> Dict[str, Any]:
+        """Get all fields from a Redis hash"""
+        if not self.enabled:
+            return {}
+        
+        try:
+            result = self.redis_client.hgetall(hash_key)
+            return {
+                field.decode() if isinstance(field, bytes) else field: 
+                self._deserialize_data(value.decode() if isinstance(value, bytes) else value)
+                for field, value in result.items()
+            }
+        except Exception as e:
+            logger.error(f"Error getting all hash fields {hash_key}: {e}")
+            return {}
