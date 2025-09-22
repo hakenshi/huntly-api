@@ -957,7 +957,10 @@ class AnalyticsService:
             
         except Exception as e:
             logger.error(f"Error calculating top converting filters: {e}")
-            return Lead.industry.isnot(None).count()
+            return []
+                    Lead.industry.isnot(None)
+                )
+            ).count()
             
             medium_value_leads = query.filter(
                 or_(Lead.email.isnot(None), Lead.phone.isnot(None))
